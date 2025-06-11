@@ -2,3 +2,5 @@
 
 #+ATTR_HTML: :alt "deflate project logo"
 [[file:img/logo.svg]]
+
+[[https://coveralls.io/github/skuro/deflate?branch=main][https://coveralls.io/repos/github/skuro/deflate/badge.svg?branch=main]]
