@@ -31,6 +31,7 @@
 
 ;;; Change log:
 ;;
+;; version 0.0.2, 2025-06-11 Fixed a few warnings and bugs, preparing for actual release
 ;; version 0.0.1, 2025-06-11 Initial release with support for dynamic Huffman / no-compression blocks
 
 ;;; Code:
