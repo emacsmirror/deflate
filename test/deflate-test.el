@@ -567,7 +567,7 @@
                                              (mapcar (lambda (i) (aref cl-lengths-array i))
                                                      deflate--code-lengths-order)))
 
-         (result (deflate--write-header bitstream hlit hdist hclen cl-lengths-array))
+         (result (deflate--write-dynamic-header bitstream hlit hdist hclen cl-lengths-array))
          (header-length (+ 1 ;; BFINAL
                            2 ;; block type
                            5 ;; HLIT

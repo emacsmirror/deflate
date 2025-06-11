@@ -29,6 +29,10 @@
 
 ;; The DEFLATE algorithm is specified by the RFC 1951, see: https://datatracker.ietf.org/doc/html/rfc1951
 
+;;; Change log:
+;;
+;; version 0.0.1, 2025-06-11 Added support for dynamic Huffman encoding and minimal zlib compatibility
+
 ;;; Code:
 
 ;; ---- Bit/byte level utility Functions ----
@@ -341,115 +345,6 @@ and extra-bits is a cons of (num-bits . value)."
    (t
     (cons 29 (cons 13 (- distance 24577))))))
 
-
-(defun deflate--build-frequency-table (tokens)
-  "Build a frequency table from TOKENS.
-Returns an hash table of keys `literal-length' and `distance', with alists of `(symbol . frequency)' as values."
-  (let ((literal-length-freq-table (make-hash-table))
-        (distance-freq-table (make-hash-table)))
-
-    ;; Process each token
-    (dolist (token tokens)
-      (if (listp token)
-          ;; This is a length-distance pair
-          (let* ((length (car token))
-                 (distance (cadr token))
-                 ;; Get length code and extra bits according to DEFLATE spec
-                 (length-result (deflate--get-length-code length))
-                 (length-code (car length-result))
-                 (length-extra (cdr length-result))
-                 ;; Get distance code and extra bits according to DEFLATE spec
-                 (distance-result (deflate--get-distance-code distance))
-                 (distance-code (car distance-result))
-                 (distance-extra (cdr distance-result)))
-
-            ;; Update length code frequency
-            (puthash length-code (1+ (gethash length-code literal-length-freq-table 0)) literal-length-freq-table)
-
-            ;; Update distance code frequency (offset by 286)
-            (let ((dist-symbol distance-code))
-              (puthash dist-symbol (1+ (gethash dist-symbol distance-freq-table 0)) distance-freq-table)))
-
-        ;; This is a literal byte
-        (puthash token (1+ (gethash token literal-length-freq-table 0)) literal-length-freq-table)))
-
-    ;; Add EOF symbol
-    (puthash 256 1 literal-length-freq-table)
-
-    ;; Convert hash tables to alists
-    (let ((literal-length-result '())
-          (distance-result '())
-          (result (make-hash-table)))
-      (maphash (lambda (k v) (push (cons k v) literal-length-result)) literal-length-freq-table)
-      (maphash (lambda (k v) (push (cons k v) distance-result)) distance-freq-table)
-      (puthash 'literal-length literal-length-result result)
-      (puthash 'distance distance-result result)
-
-      result)))
-
-(defun deflate--build-huffman-tree (freq-alist)
-  "Build a Huffman tree from FREQ-ALIST.
-Returns the root node of the tree."
-  (let ((heap (mapcar (lambda (pair) (cons (car pair) (cdr pair)))
-                      freq-alist)))
-    (while (> (length heap) 1)
-      ;; Sort heap by frequency ascending
-      (setq heap (--sort (< (cdr it) (cdr other)) heap))
-      ;; Take two lowest freq nodes
-      (let* ((a (pop heap))
-             (b (pop heap))
-             (merged (cons (list a b) (+ (cdr a) (cdr b)))))
-        (push merged heap)))
-    ;; Return the single tree
-    (car heap)))
-
-(defun deflate--build-huffman-code-lengths (tree)
-  "Build Huffman codes from TREE.
-Returns an alist of `(symbol . length)' where `length' is the depth of `symbol'
-in the `tree'.
-Returns nil if TREE is nil."
-  (when tree
-    (letrec ((walk (lambda (node depth)
-                     (if (consp (car node))
-                         (append (funcall walk (car (car node)) (1+ depth))
-                                 (funcall walk (cadr (car node)) (1+ depth)))
-                       ;; Leaf node
-                       (list (cons (car node) depth))))))
-      (funcall walk tree 0))))
-
-(defun deflate--assign-huffman-codes (code-lengths)
-  "Assign canonical Huffman codes from the CODE-LENGTHS alist.
-Returns a map of `symbol' -> `(code . length)' where `code' is an integer."
-  (let ((table (make-hash-table :test #'eq)))
-    (if code-lengths
-        (let* ((max-len (apply #'max (mapcar #'cdr code-lengths)))
-               (bl-count (make-vector (1+ max-len) 0))
-               (next-code (make-vector (1+ max-len) 0))
-               (code 0))
-          ;; Count number of codes for each length
-          (dolist (pair code-lengths)
-            (let ((len (cdr pair)))
-              (when (> len 0)
-                (aset bl-count len (1+ (aref bl-count len))))))
-          ;; Compute starting code for each length
-          (dotimes (bits max-len)
-            (setq code (lsh (+ code (aref bl-count bits)) 1))
-            (aset next-code (1+ bits) code))
-          ;; Sort symbols by (length . symbol)
-          (dolist (pair (sort code-lengths
-                              (lambda (a b)
-                                (if (= (cdr a) (cdr b))
-                                    (< (car a) (car b))
-                                  (< (cdr a) (cdr b)))))
-                        table)
-            (let ((sym (car pair))
-                  (len (cdr pair)))
-              (when (> len 0)
-                (let ((code (aref next-code len)))
-                  (puthash sym (cons code len) table)
-                  (aset next-code len (1+ code)))))))
-      table)))
-
 (defun deflate--huffman-encode-token (token ll-codes dd-codes)
   "Encode TOKEN using Huffman codes.
 Codes are provided separately for literal/length (as LL-CODES) and
@@ -501,7 +396,115 @@ Returns a list of alists of `code', `code-length', `num-extra-bits' and `extra-b
                               (code-length . ,code-length))))
         (append result (list literal-alist))))))
 
-;; ---- Actual DEFLATE Implementation ----
+;; ---- Dynamic Huffman DEFLATE Implementation ----
+
+(defun deflate--build-huffman-tree (freq-alist)
+  "Build a Huffman tree from FREQ-ALIST.
+Returns the root node of the tree."
+  (let ((heap (mapcar (lambda (pair) (cons (car pair) (cdr pair)))
+                      freq-alist)))
+    (while (> (length heap) 1)
+      ;; Sort heap by frequency ascending
+      (setq heap (--sort (< (cdr it) (cdr other)) heap))
+      ;; Take two lowest freq nodes
+      (let* ((a (pop heap))
+             (b (pop heap))
+             (merged (cons (list a b) (+ (cdr a) (cdr b)))))
+        (push merged heap)))
+    ;; Return the single tree
+    (car heap)))
+
+(defun deflate--build-frequency-table (tokens)
+  "Build a frequency table from TOKENS.
+Returns an hash table of keys `literal-length' and `distance', with alists of `(symbol . frequency)' as values."
+  (let ((literal-length-freq-table (make-hash-table))
+        (distance-freq-table (make-hash-table)))
+
+    ;; Process each token
+    (dolist (token tokens)
+      (if (listp token)
+          ;; This is a length-distance pair
+          (let* ((length (car token))
+                 (distance (cadr token))
+                 ;; Get length code and extra bits according to DEFLATE spec
+                 (length-result (deflate--get-length-code length))
+                 (length-code (car length-result))
+                 (length-extra (cdr length-result))
+                 ;; Get distance code and extra bits according to DEFLATE spec
+                 (distance-result (deflate--get-distance-code distance))
+                 (distance-code (car distance-result))
+                 (distance-extra (cdr distance-result)))
+
+            ;; Update length code frequency
+            (puthash length-code (1+ (gethash length-code literal-length-freq-table 0)) literal-length-freq-table)
+
+            ;; Update distance code frequency (offset by 286)
+            (let ((dist-symbol distance-code))
+              (puthash dist-symbol (1+ (gethash dist-symbol distance-freq-table 0)) distance-freq-table)))
+
+        ;; This is a literal byte
+        (puthash token (1+ (gethash token literal-length-freq-table 0)) literal-length-freq-table)))
+
+    ;; Add EOF symbol
+    (puthash 256 1 literal-length-freq-table)
+
+    ;; Convert hash tables to alists
+    (let ((literal-length-result '())
+          (distance-result '())
+          (result (make-hash-table)))
+      (maphash (lambda (k v) (push (cons k v) literal-length-result)) literal-length-freq-table)
+      (maphash (lambda (k v) (push (cons k v) distance-result)) distance-freq-table)
+      (puthash 'literal-length literal-length-result result)
+      (puthash 'distance distance-result result)
+
+      result)))
+
+(defun deflate--build-huffman-code-lengths (tree)
+  "Build Huffman codes from TREE.
+Returns an alist of `(symbol . length)' where `length' is the depth of `symbol'
+in the `tree'.
+Returns nil if TREE is nil."
+  (when tree
+    (letrec ((walk (lambda (node depth)
+                     (if (consp (car node))
+                         (append (funcall walk (car (car node)) (1+ depth))
+                                 (funcall walk (cadr (car node)) (1+ depth)))
+                       ;; Leaf node
+                       (list (cons (car node) depth))))))
+      (funcall walk tree 0))))
+
+(defun deflate--assign-huffman-codes (code-lengths)
+  "Assign canonical Huffman codes from the CODE-LENGTHS alist.
+Returns a map of `symbol' -> `(code . length)' where `code' is an integer."
+  (let ((table (make-hash-table :test #'eq)))
+    (if code-lengths
+        (let* ((max-len (apply #'max (mapcar #'cdr code-lengths)))
+               (bl-count (make-vector (1+ max-len) 0))
+               (next-code (make-vector (1+ max-len) 0))
+               (code 0))
+          ;; Count number of codes for each length
+          (dolist (pair code-lengths)
+            (let ((len (cdr pair)))
+              (when (> len 0)
+                (aset bl-count len (1+ (aref bl-count len))))))
+          ;; Compute starting code for each length
+          (dotimes (bits max-len)
+            (setq code (lsh (+ code (aref bl-count bits)) 1))
+            (aset next-code (1+ bits) code))
+          ;; Sort symbols by (length . symbol)
+          (dolist (pair (sort code-lengths
+                              (lambda (a b)
+                                (if (= (cdr a) (cdr b))
+                                    (< (car a) (car b))
+                                  (< (cdr a) (cdr b)))))
+                        table)
+            (let ((sym (car pair))
+                  (len (cdr pair)))
+              (when (> len 0)
+                (let ((code (aref next-code len)))
+                  (puthash sym (cons code len) table)
+                  (aset next-code len (1+ code)))))))
+      table)))
 
 (defun deflate--encode-code-lengths-to-alphabet (code-lengths)
   "Encode the sequence of CODE-LENGTHS into the RLE alphabet, RFC 3.2.7.
@@ -611,13 +614,17 @@ comes from the custom alphabet and extra-bits-value is an integer."
   (let ((bits-to-pack (if invert bits (seq-reverse bits))))
     (append bitstream bits-to-pack)))
 
-(defun deflate--write-header (bitstream hlit hdist hclen cl-lengths-array)
+(defun deflate--write-dynamic-header (bitstream final hlit hdist hclen cl-lengths-array)
   "Write the DEFLATE header into BITSTREAM.
 The (meta) Huffman parameters HLIT / HDIST / HCLEN use the standard bit length.
-The CL-LENGTHS-ARRAY array contains the code lengths for the code length alphabet."
+The CL-LENGTHS-ARRAY array contains the code lengths for the code length
+alphabet.
+If the FINAL flag is non-nil it sets the BFINAL flag to 1."
   ;; Block header:
-  ;; - First bit: Final block flag (1 for final block -- we only output one block for simplicity)
-  (setq bitstream (deflate--pack-bits bitstream '(1)))
+  ;; - First bit: Final block flag (1 for final block)
+  (if final
+      (setq bitstream (deflate--pack-bits bitstream '(1)))
+    (setq bitstream (deflate--pack-bits bitstream '(0))))
 
   ;; - Next 2 bits: Block type (10 for dynamic Huffman)
   (setq bitstream (deflate--pack-bits bitstream '(1 0)))
@@ -654,17 +661,17 @@ The CL-LENGTHS-ARRAY array contains the code lengths for the code length alphabe
   "Write a single Huffman CODE into the BITSTREAM in invenrted bit order.
 The CODE is going to be exactly CODE-LENGTH bits.
 Optionally adds EXTRA-BITS-VALUE as a sequence of NUM-EXTRA-BITS bits."
-    (setq bitstream (deflate--pack-bits bitstream
-                                                      (deflate--number->bits code code-length)
-                                                      t)) ;; <- huffman codes are written in MSB order
-    (when (and num-extra-bits
-               (> num-extra-bits 0))
-      (let ((extra-bits (deflate--number->bits extra-bits-value num-extra-bits)))
-        (setq bitstream (deflate--pack-bits bitstream
-                                                          extra-bits
-                                                          nil) ;; <- extra bits are written in LSB order
-              )))
-    bitstream)
+  (setq bitstream (deflate--pack-bits bitstream
+                                      (deflate--number->bits code code-length)
+                                      t)) ;; <- huffman codes are written in MSB order
+  (when (and num-extra-bits
+             (> num-extra-bits 0))
+    (let ((extra-bits (deflate--number->bits extra-bits-value num-extra-bits)))
+      (setq bitstream (deflate--pack-bits bitstream
+                                          extra-bits
+                                          nil) ;; <- extra bits are written in LSB order
+            )))
+  bitstream)
 
 (defun deflate--write-code-lengths (bitstream cl-encoded cl-huff-codes)
   "Write the Huffman code lengths into the BITSTREAM.
@@ -703,10 +710,11 @@ ENCODED-TOKENS is a list of alists which represents either literal, lengths or d
                                                        extra-bits-value))))
   bitstream)
 
-(defun deflate--encode-dynamic-huffman-block (lz77-tokens)
+(defun deflate--encode-dynamic-huffman-block (lz77-tokens &optional final)
   "Encode LZ77-TOKENS using dynamic Huffman coding.
 Header and compressed data is packed in LSB order, while Huffman codes in MSB.
-Returns a list of bits representing the compressed data for a DEFLATE block."
+Returns a list of bits representing the compressed data for a DEFLATE block.
+If FINAL is non-nil it sets the BFINAL flag to 1 to signal it's the last block."
   (let* ((freq-table (deflate--build-frequency-table lz77-tokens))
 
          ;; build the Huffman codes for literals/lengths
@@ -819,7 +827,7 @@ Returns a list of bits representing the compressed data for a DEFLATE block."
               ;; ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; ;;
 
               ;; the header takes care of points a / b / c / d
-              (setq bitstream (deflate--write-header bitstream hlit hdist hclen cl-lengths-array))
+              (setq bitstream (deflate--write-dynamic-header bitstream final hlit hdist hclen cl-lengths-array))
 
               ;; this is for points e / f
               (setq bitstream (deflate--write-code-lengths bitstream cl-encoded cl-huff-codes))
@@ -835,20 +843,85 @@ Returns a list of bits representing the compressed data for a DEFLATE block."
 
               bitstream)))))))
 
-(defun deflate-compress (data)
-  "Compress DATA using the DEFLATE algorithm.
-DATA should be a string or a vector of bytes.
-Returns a vector of compressed bytes."
-  (when (stringp data)
-    (setq data (string-to-list data)))
+;; ---- No-compression type ----
 
-  ;; Perform LZ77 compression
+(defun deflate--encode-none-block (data final)
+  "Writes out DATA as a non-compressed DEFLATE block (BTYPE=00).
+When FINAL is non-nil the block is marked as final."
+  (let ((bitstream '())
+
+        ;; LEN: amount of data bytes in the block
+        (len (length data))
+
+        ;; NLEN: 1-complement of LEN
+        (nlen (- #xFFFF len)))
+    ;; Block header:
+    ;; - First bit: Final block flag (1 for final block)
+    (if final
+        (setq bitstream (deflate--pack-bits bitstream '(1)))
+      (setq bitstream (deflate--pack-bits bitstream '(0))))
+
+    ;; - Next 2 bits: Block type (00 for no compression)
+    (setq bitstream (deflate--pack-bits bitstream '(0 0)))
+
+    ;; - Next 5 bits: Padding (need to get to byte boundary)
+    (setq bitstream (deflate--pack-bits bitstream (-repeat 5 0)))
+
+    ;; - Finally, the raw, uncompressed data bytes
+    (dolist (data-byte data)
+      (setq bitstream (deflate--pack-bits bitstream (deflate--number->bits data-byte 8))))
+
+    bitstream))
+
+;; ---- / ----
+
+(defun deflate-compress--dynamic (data final)
+  "Compress DATA into a block using the Dynamic Huffman coding DEFLATE variant.
+See the RFC paragraph 3.2.7.
+When FINAL is non-nil the block is marked as final."
   (let* ((lz77-tokens (deflate--lz77-compress data))
          ;; Use dynamic Huffman coding
-         (compressed-bits (deflate--encode-dynamic-huffman-block lz77-tokens))
+         (compressed-bits (deflate--encode-dynamic-huffman-block lz77-tokens final))
          ;; Convert bits back to bytes
          (compressed-bytes (deflate--bits-to-bytes compressed-bits)))
     compressed-bytes))
+
+(defun deflate-compress--static (data final)
+  "Compress DATA using the Static Huffman coding DEFLATE variant.
+See the RFC paragraph 3.2.6.
+When FINAL is non-nil the block is marked as final."
+  (error "Static huffman codes are not supported yet (see https://github.com/skuro/deflate/issues/1)"))
+
+(defun deflate-compress--none (data final)
+  "Writes DATA using the non-compressed block DEFLATE variant.
+See the RFC paragraph 3.2.4.
+When FINAL is non-nil the block is marked as final."
+  (deflate--encode-none-block data))
+
+;; ---- Public API follows ----
+
+;;;###autoload
+(defun deflate-compress (data &optional compression-type)
+  "Compress DATA using the DEFLATE algorithm.
+DATA should be a string or a vector of bytes.
+Returns a vector of compressed bytes.
+COMPRESSION-TYPE is one of the following:
+  'dynamic (default) - Use dynamic Huffman coding
+  'static - Use static Huffman coding
+  'none - Store without compression"
+  (when (stringp data)
+    (setq data (string-to-list data)))
+
+  (when (> (length data) deflate--window-size)
+    (error "Data cannot be longer than 32k"))
+
+  ;; Perform LZ77 compression
+  (let* ((compression-type (or compression-type 'dynamic))
+         (compressed-bits (cond ((eq type 'dynamic) (deflate-compress--dynamic data))
+                                ((eq type 'static) (deflate-compress-static data))
+                                ((eq type 'none) (deflate-compress--none data))
+                                (t (error "Invalid compression type: %s" compression-type)))))
+    (deflate--bits-to-bytes compressed-bits)))
 
 ;; ---- Minimal ZLIB compatibility layer Implementation ----
 
@@ -869,15 +942,15 @@ Returns a 4-bytes list checksum compatible with the zlib format."
             (logand (lsh checksum -8) 255)
             (logand checksum 255)))))
 
-(defconst deflate--zlib-cmf "78"
+(defconst deflate--zlib-cmf #x78
   "The CMF header byte for zlib compatibiliy (CM=8 for DEFLATE, CINFO=7 for 32KB window.")
 
-(defconst deflate--zlib-flg "9C"
+(defconst deflate--zlib-flg #x9C
   "The FLG header byte for zlib compatibility (chosen so that CMF*256 + FLG is divisible by 31).")
 
 (defconst deflate-zlib-header
-  (list (string-to-number deflate--zlib-cmf 16)
-        (string-to-number deflate--zlib-flg 16))
+  (list deflate--zlib-cmf
+        deflate--zlib-flg)
   "The fixed zlib compatibility header.")
 
 ;; ---- Only useful for debugging purposes ----

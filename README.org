@@ -38,3 +38,4 @@ There's currently no plan to expand on ~zlib~ compatibility.
 - [ ] static Huffman codes compression
 - [ ] no-compression blocks
 - [ ] support more than 32k inputs / multiple blocks
+- [ ] decompress
