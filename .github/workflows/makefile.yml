@@ -29,10 +29,10 @@ jobs:
         with:
           version: ${{ matrix.emacs-version }}
 
-      - uses: actions/cache@v2
+      - uses: actions/cache@v4
         id: cache-cask-packages
         with:
           path: .cask
-          key: cache-cask-packages-000
+          key: cache-cask-packages-${{emacs-version}}
 
       - run: make
