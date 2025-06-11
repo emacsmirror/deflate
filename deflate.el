@@ -352,7 +352,7 @@ Codes are provided separately for literal/length (as LL-CODES) and
 distance (as DD-CODES).
 Returns a list of alists of `code', `code-length', `num-extra-bits' and
 `extra-bits-value'."
-  (let (result '())
+  (let ((result '()))
     (if (listp token)
         ;; This is a length-distance pair
         (let* (;; process length first
@@ -855,14 +855,14 @@ If FINAL is non-nil it sets the BFINAL flag to 1 to signal it's the last block."
 (defun deflate--encode-none-block (data final)
   "Writes out DATA as a non-compressed DEFLATE block (BTYPE=00).
 When FINAL is non-nil (default) the block is marked as final."
-  (let ((final (or final t))
-        (bitstream '())
+  (let* ((final (or final t))
+         (bitstream '())
 
-        ;; LEN: amount of data bytes in the block
-        (len (length data))
+         ;; LEN: amount of data bytes in the block
+         (len (length data))
 
-        ;; NLEN: 1-complement of LEN
-        (nlen (- #xFFFF len)))
+         ;; NLEN: 1-complement of LEN
+         (nlen (- #xFFFF len)))
     ;; Block header:
     ;; - First bit: Final block flag (1 for final block)
     (if final
@@ -910,7 +910,7 @@ When FINAL is non-nil the block is marked as final."
   "Writes DATA using the non-compressed block DEFLATE variant.
 See the RFC paragraph 3.2.4.
 When FINAL is non-nil the block is marked as final."
-  (deflate--encode-none-block data))
+  (deflate--encode-none-block data final))
 
 ;; ---- Public API follows ----
 
@@ -920,9 +920,9 @@ When FINAL is non-nil the block is marked as final."
 DATA should be a string or a vector of bytes.
 Returns a vector of compressed bytes.
 COMPRESSION-TYPE is one of the following:
-  'dynamic (default) - Use dynamic Huffman coding
-  'static - Use static Huffman coding
-  'none - Store without compression.
+  `'dynamic' (default) - Use dynamic Huffman coding
+  `'static' - Use static Huffman coding
+  `'none' - Store without compression.
 If FINAL is non-nil (default) it produces a final block (BFINAL=1)."
   (when (stringp data)
     (setq data (string-to-list data)))
