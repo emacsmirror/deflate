@@ -4,3 +4,36 @@
 [[file:img/logo.svg]]
 
 [[https://coveralls.io/github/skuro/deflate?branch=main][https://coveralls.io/repos/github/skuro/deflate/badge.svg?branch=main]]
+
+#+BEGIN_QUOTE
+"Beware of bugs in the above code; I have only proved it correct, not tried it."
+
+/Donald Knuth/
+#+END_QUOTE
+
+The DEFLATE algorithm specified in [[https://datatracker.ietf.org/doc/html/rfc1951][RFC1951]] is implemented here in pure Emacs LISP. The driving reason to create
+yet another implementation stemmed from the needs of [[https://github.com/skuro/plantuml-mode][PlantUML mode]] requiring compressing some text with DEFLATE,
+and I didn't want to deal with external dependencies.
+
+While the scope of this project is to write a full implementation of the DEFLATE algorithm, which leaves ample room
+to implementers to achieve various degrees of compression ration, there is currently no interest of developing
+the best compression ratios on the planet, but rather being able to support DEFLATE (and a little bit of [[https://zlib.net/][zlib]])
+in Emacs in a portable fashion.
+
+The current implementation doesn't attempt to be smart or particularly performant. Also, I'm not necessarily an
+elisp black belt: if you see things that can be improved, [[https://github.com/skuro/deflate/pulls][pulls are welcome]]!
+
+** Notes on ~zlib~ compatibility
+
+As the original use of this package is to give the necessary DEFLATE support to ~plantuml-mode~, and since
+~plantuml~ itself requires a ~zlib~ envelope around the actual DEFLATE byte stream, this project provides some
+minimum-effort support to ensure binary compatibility (pretty much a little header and the [[https://en.wikipedia.org/wiki/Adler-32][Adler32]] checksum).
+There's currently no plan to expand on ~zlib~ compatibility.
+
+** Development status and TODO's
+
+- [X] dynamic Huffman codes compression
+- [X] basic ZLIB compatibility layer
+- [ ] static Huffman codes compression
+- [ ] no-compression blocks
+- [ ] support more than 32k inputs / multiple blocks
