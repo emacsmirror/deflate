@@ -980,7 +980,7 @@ The INSTR string is compressed with DEFLATE and the bytes are stored in the file
 The file at OUTPATH can be inspected with tools such as `infgen':
 https://github.com/madler/infgen."
   (let* ((compressed-bytes (deflate-compress instr))
-         (adler32 (deflate-adler32 instr)))
+         (adler32 (deflate-zlib-adler32 instr)))
     (with-temp-file outpath
       (set-buffer-file-coding-system 'binary)
       (dolist (byte (append deflate-zlib-header
