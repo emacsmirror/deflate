@@ -26,6 +26,12 @@
 
 (require 'dash)
 
+;; ---- Utility functions ----
+
+(defun deflate/code-comparator (a b)
+  "Compares Huffman codes A and B provided as cons of (symbol . code)."
+  (< (car a) (car b)))
+
 (ert-deftest deflate-test/bitwise-operation ()
   "Test correct transformation of bits to bytes and viceversa."
   (let* ((original-string "test")
@@ -118,18 +124,26 @@
          (tokens (deflate--lz77-compress data))
          (result (deflate--build-frequency-table tokens)))
     ;; note: you can follow along whe freq table with the value at the expectation at `deflate-test/lz77-compress'
-    (should (equal (sort `((79 . 1) (110 . 2) (101 . 2) (111 . 2) (32 . 1)
-                           (,(car (deflate--get-length-code 3)) . 2)
-                           (,(car (deflate--get-length-code 4)) . 1)
-                           (116 . 1) (119 . 1)
-                           (,(car (deflate--get-length-code 7)) . 1)
-                           (256 . 1) ;; EOF
-                           ))
-                   (sort (gethash 'literal-length result))))
-    (should (equal (sort `((,(car (deflate--get-distance-code 4)) . 1)
-                           (,(car (deflate--get-distance-code 3)) . 1)
-                           (,(car (deflate--get-distance-code 7)) . 2)))
-                   (sort (gethash 'distance result))))))
+    (should (equal (-sort
+                    #'deflate/code-comparator
+                    `((79 . 1) (110 . 2) (101 . 2) (111 . 2) (32 . 1)
+                      (,(car (deflate--get-length-code 3)) . 2)
+                      (,(car (deflate--get-length-code 4)) . 1)
+                      (116 . 1) (119 . 1)
+                      (,(car (deflate--get-length-code 7)) . 1)
+                      (256 . 1) ;; EOF
+                      ))
+                   (-sort
+                    #'deflate/code-comparator
+                    (gethash 'literal-length result))))
+    (should (equal (-sort
+                    #'deflate/code-comparator
+                    `((,(car (deflate--get-distance-code 4)) . 1)
+                      (,(car (deflate--get-distance-code 3)) . 1)
+                      (,(car (deflate--get-distance-code 7)) . 2)))
+                   (-sort
+                    #'deflate/code-comparator
+                    (gethash 'distance result))))))
 
 (ert-deftest deflate-test/huffman-tree ()
   "Test Huffman tree generation."
@@ -170,7 +184,7 @@
 (ert-deftest deflate-test/huffman-code-lengths-simple ()
   "Test Huffman code generation."
   (let* ((data (string-to-list "One"))
-         (tokens (deflate--lz77-compress data)) ;; no compression as there is no repetition
+         (tokens (deflate--lz77-compress data))               ;; no compression as there is no repetition
          (freq-table (deflate--build-frequency-table tokens)) ;; no distance, only literal/length
          (ll-huff-tree (deflate--build-huffman-tree (gethash 'literal-length freq-table))))
     ;; the frequency table for literal length is:
@@ -182,12 +196,14 @@
     ;;     (*)   (*)
     ;;    /   \  /   \
     ;; 110   79 256 101
-    (should (equal (sort
+    (should (equal (-sort
+                    #'deflate/code-comparator
                     '((79  . 2)
                       (101 . 2)
                       (110 . 2)
                       (256 . 2)))
-                   (sort
+                   (-sort
+                    #'deflate/code-comparator
                     (deflate--build-huffman-code-lengths ll-huff-tree))))))
 
 (ert-deftest deflate-test/huffman-code-lengths ()
@@ -198,7 +214,8 @@
          (ll-huff-tree (deflate--build-huffman-tree (gethash 'literal-length freq-table)))
          (dd-huff-tree (deflate--build-huffman-tree (gethash 'distance freq-table))))
     ;; should be able to follow along with the depths witten in the `deflate-test/huffman-tree' test
-    (should (equal (sort
+    (should (equal (-sort
+                    #'deflate/code-comparator
                     '((79 . 3)
                       (258 . 4)
                       (32 . 4)
@@ -210,13 +227,16 @@
                       (116 . 4)
                       (256 . 4)
                       (261 . 4)))
-                   (sort
+                   (-sort
+                    #'deflate/code-comparator
                     (deflate--build-huffman-code-lengths ll-huff-tree))))
-    (should (equal (sort
+    (should (equal (-sort
+                    #'deflate/code-comparator
                     '((2 . 2)
                       (3 . 2)
                       (5 . 1)))
-                   (sort
+                   (-sort
+                    #'deflate/code-comparator
                     (deflate--build-huffman-code-lengths dd-huff-tree))))))
 
 (ert-deftest deflate-test/huffman-codes ()
@@ -229,7 +249,8 @@
          (ll-code-lengths (deflate--build-huffman-code-lengths ll-huff-tree))
          (dd-code-lengths (deflate--build-huffman-code-lengths dd-huff-tree)))
     ;; canonical Huffman codes use adjacent numbers for same-lengths, sorted by token
-    (should (equal (sort
+    (should (equal (-sort
+                    #'deflate/code-comparator
                     '(;; code length 3
                       (79  . (0 . 3))
                       (101 . (1 . 3))
@@ -243,7 +264,8 @@
                       (256 . (13 . 4))
                       (258 . (14 . 4))
                       (261 . (15 . 4))))
-                   (sort
+                   (-sort
+                    #'deflate/code-comparator
                     (let ((codes (deflate--assign-huffman-codes ll-code-lengths))
                           (codes-alist '()))
                       (maphash (lambda (k v)
