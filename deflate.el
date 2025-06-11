@@ -932,9 +932,9 @@ If FINAL is non-nil (default) it produces a final block (BFINAL=1)."
   ;; Perform LZ77 compression
   (let* ((final (or final t))
          (compression-type (or compression-type 'dynamic))
-         (compressed-bits (cond ((eq type 'dynamic) (deflate-compress--dynamic data final))
-                                ((eq type 'static) (deflate-compress-static data final))
-                                ((eq type 'none) (deflate-compress--none data final))
+         (compressed-bits (cond ((eq compression-type 'dynamic) (deflate-compress--dynamic data final))
+                                ((eq compression-type 'static) (deflate-compress--static data final))
+                                ((eq compression-type 'none) (deflate-compress--none data final))
                                 (t (error "Invalid compression type: %s" compression-type)))))
     (deflate--bits-to-bytes compressed-bits)))
 
@@ -958,10 +958,12 @@ Returns a 4-bytes list checksum compatible with the zlib format."
             (logand checksum 255)))))
 
 (defconst deflate--zlib-cmf #x78
-  "The CMF header byte for zlib compatibiliy (CM=8 for DEFLATE, CINFO=7 for 32KB window.")
+  "The CMF header byte for zlib compatibiliy.
+CM=8 for DEFLATE, CINFO=7 for 32KB window.")
 
 (defconst deflate--zlib-flg #x9C
-  "The FLG header byte for zlib compatibility (chosen so that CMF*256 + FLG is divisible by 31).")
+  "The FLG header byte for zlib compatibility.
+Chosen so that CMF*256 + FLG is divisible by 31).")
 
 (defconst deflate-zlib-header
   (list deflate--zlib-cmf
