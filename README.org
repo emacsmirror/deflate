@@ -1,0 +1,4 @@
+* DEFLATE -- a pure Emacs lisp implementation of the DEFLATE compression algorithm
+
+#+ATTR_HTML: :alt "Project Logo"
+[[file:img/logo.svg]]
