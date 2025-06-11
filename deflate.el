@@ -349,7 +349,8 @@ and extra-bits is a cons of (num-bits . value)."
   "Encode TOKEN using Huffman codes.
 Codes are provided separately for literal/length (as LL-CODES) and
 distance (as DD-CODES).
-Returns a list of alists of `code', `code-length', `num-extra-bits' and `extra-bits-value'."
+Returns a list of alists of `code', `code-length', `num-extra-bits' and
+`extra-bits-value'."
   (let (result '())
     (if (listp token)
         ;; This is a length-distance pair
@@ -416,7 +417,8 @@ Returns the root node of the tree."
 
 (defun deflate--build-frequency-table (tokens)
   "Build a frequency table from TOKENS.
-Returns an hash table of keys `literal-length' and `distance', with alists of `(symbol . frequency)' as values."
+Returns an hash table of keys `literal-length' and `distance', with alists of
+`(symbol . frequency)' as values."
   (let ((literal-length-freq-table (make-hash-table))
         (distance-freq-table (make-hash-table)))
 
@@ -429,11 +431,9 @@ Returns an hash table of keys `literal-length' and `distance', with alists of `(
                  ;; Get length code and extra bits according to DEFLATE spec
                  (length-result (deflate--get-length-code length))
                  (length-code (car length-result))
-                 (length-extra (cdr length-result))
                  ;; Get distance code and extra bits according to DEFLATE spec
                  (distance-result (deflate--get-distance-code distance))
-                 (distance-code (car distance-result))
-                 (distance-extra (cdr distance-result)))
+                 (distance-code (car distance-result)))
 
             ;; Update length code frequency
             (puthash length-code (1+ (gethash length-code literal-length-freq-table 0)) literal-length-freq-table)
@@ -489,7 +489,7 @@ Returns a map of `symbol' -> `(code . length)' where `code' is an integer."
                 (aset bl-count len (1+ (aref bl-count len))))))
           ;; Compute starting code for each length
           (dotimes (bits max-len)
-            (setq code (lsh (+ code (aref bl-count bits)) 1))
+            (setq code (ash (+ code (aref bl-count bits)) 1))
             (aset next-code (1+ bits) code))
           ;; Sort symbols by (length . symbol)
           (dolist (pair (sort code-lengths
@@ -569,7 +569,9 @@ comes from the custom alphabet and extra-bits-value is an integer."
 
 
 (defun deflate--calculate-hlit-length (code-lengths-array)
-  "Calculate the base length for the HLIT header from the literal/lengths CODE-LENGTHS-ARRAY array."
+  "Calculate the base length for the HLIT header.
+The literal/lengths are given as CODE-LENGTHS-ARRAY whose indices are symbols
+and values are code lengths."
   (let* ((hlit-min 257)
          (hlit-max-index (-find-last-index (lambda (x) (/= x 0))
                                            ;; -find-last-index requires a list
@@ -582,7 +584,9 @@ comes from the custom alphabet and extra-bits-value is an integer."
     hlit))
 
 (defun deflate--calculate-hdist-length (code-lengths-array)
-  "Calculate the base length for HDIST header from the distances CODE-LENGTHS-ARRAY array."
+  "Calculate the base length for HDIST header.
+The distances ar given as CODE-LENGTHS-ARRAY whose indices are symbols
+and values are code lenghts."
   (let* ((hdist-min 1)
          (hdist-max-index (-find-last-index (lambda (x) (/= x 0))
                                             ;; -find-last-index requires a list
@@ -696,7 +700,8 @@ The CL-HUFF-CODES hashmap contains the Huffman codes for each code length."
 
 (defun deflate--write-compressed-data (bitstream encoded-tokens)
   "Write compressed data into BITSTREAM.
-ENCODED-TOKENS is a list of alists which represents either literal, lengths or distances."
+ENCODED-TOKENS is a list of alists which represents either literal,
+lengths or distances."
   (dolist (encoded-token encoded-tokens)
     (let* ((code (cdr (assoc 'code encoded-token)))
            (code-length (cdr (assoc 'code-length encoded-token)))
@@ -869,6 +874,12 @@ When FINAL is non-nil (default) the block is marked as final."
     ;; - Next 5 bits: Padding (need to get to byte boundary)
     (setq bitstream (deflate--pack-bits bitstream (-repeat 5 0)))
 
+    ;; - Next 16 bits: LEN
+    (setq bitstream (deflate--pack-bits bitstream (deflate--number->bits len 16)))
+
+    ;; - Next 16 bits: NLEN
+    (setq bitstream (deflate--pack-bits bitstream (deflate--number->bits nlen 16)))
+
     ;; - Finally, the raw, uncompressed data bytes
     (dolist (data-byte data)
       (setq bitstream (deflate--pack-bits bitstream (deflate--number->bits data-byte 8))))
@@ -940,10 +951,10 @@ Returns a 4-bytes list checksum compatible with the zlib format."
                     data))
       (setq a (% (+ a byte) mod-adler))
       (setq b (% (+ b a) mod-adler)))
-    (let ((checksum (logior (lsh b 16) a)))
-      (list (logand (lsh checksum -24) 255)
-            (logand (lsh checksum -16) 255)
-            (logand (lsh checksum -8) 255)
+    (let ((checksum (logior (ash b 16) a)))
+      (list (logand (ash checksum -24) 255)
+            (logand (ash checksum -16) 255)
+            (logand (ash checksum -8) 255)
             (logand checksum 255)))))
 
 (defconst deflate--zlib-cmf #x78
