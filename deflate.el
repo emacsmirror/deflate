@@ -31,7 +31,7 @@
 
 ;;; Change log:
 ;;
-;; version 0.0.1, 2025-06-11 Added support for dynamic Huffman encoding and minimal zlib compatibility
+;; version 0.0.1, 2025-06-11 Initial release with support for dynamic Huffman / no-compression blocks
 
 ;;; Code:
 
@@ -715,7 +715,8 @@ ENCODED-TOKENS is a list of alists which represents either literal, lengths or d
 Header and compressed data is packed in LSB order, while Huffman codes in MSB.
 Returns a list of bits representing the compressed data for a DEFLATE block.
 If FINAL is non-nil it sets the BFINAL flag to 1 to signal it's the last block."
-  (let* ((freq-table (deflate--build-frequency-table lz77-tokens))
+  (let* ((final (or final t))
+         (freq-table (deflate--build-frequency-table lz77-tokens))
 
          ;; build the Huffman codes for literals/lengths
          (ll-huff-tree (deflate--build-huffman-tree (gethash 'literal-length freq-table)))
@@ -847,8 +848,9 @@ If FINAL is non-nil it sets the BFINAL flag to 1 to signal it's the last block."
 
 (defun deflate--encode-none-block (data final)
   "Writes out DATA as a non-compressed DEFLATE block (BTYPE=00).
-When FINAL is non-nil the block is marked as final."
-  (let ((bitstream '())
+When FINAL is non-nil (default) the block is marked as final."
+  (let ((final (or final t))
+        (bitstream '())
 
         ;; LEN: amount of data bytes in the block
         (len (length data))
@@ -901,14 +903,15 @@ When FINAL is non-nil the block is marked as final."
 ;; ---- Public API follows ----
 
 ;;;###autoload
-(defun deflate-compress (data &optional compression-type)
+(defun deflate-compress (data &optional compression-type final)
   "Compress DATA using the DEFLATE algorithm.
 DATA should be a string or a vector of bytes.
 Returns a vector of compressed bytes.
 COMPRESSION-TYPE is one of the following:
   'dynamic (default) - Use dynamic Huffman coding
   'static - Use static Huffman coding
-  'none - Store without compression"
+  'none - Store without compression.
+If FINAL is non-nil (default) it produces a final block (BFINAL=1)."
   (when (stringp data)
     (setq data (string-to-list data)))
 
@@ -916,10 +919,11 @@ COMPRESSION-TYPE is one of the following:
     (error "Data cannot be longer than 32k"))
 
   ;; Perform LZ77 compression
-  (let* ((compression-type (or compression-type 'dynamic))
-         (compressed-bits (cond ((eq type 'dynamic) (deflate-compress--dynamic data))
-                                ((eq type 'static) (deflate-compress-static data))
-                                ((eq type 'none) (deflate-compress--none data))
+  (let* ((final (or final t))
+         (compression-type (or compression-type 'dynamic))
+         (compressed-bits (cond ((eq type 'dynamic) (deflate-compress--dynamic data final))
+                                ((eq type 'static) (deflate-compress-static data final))
+                                ((eq type 'none) (deflate-compress--none data final))
                                 (t (error "Invalid compression type: %s" compression-type)))))
     (deflate--bits-to-bytes compressed-bits)))
 
@@ -956,7 +960,7 @@ Returns a 4-bytes list checksum compatible with the zlib format."
 ;; ---- Only useful for debugging purposes ----
 
 (defun deflate--debug (instr outpath)
-  "Debug the generated DEFLATE bytes stream.
+  "Compresses instr and writes the result into OUTPATH for debugging purposes.
 The INSTR string is compressed with DEFLATE and the bytes are stored in the file
  at OUTPATH.
 The file at OUTPATH can be inspected with tools such as `infgen':
