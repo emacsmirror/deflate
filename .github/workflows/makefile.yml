@@ -29,10 +29,17 @@ jobs:
         with:
           version: ${{ matrix.emacs-version }}
 
+      - uses: actions/setup-python@v2
+        with:
+          python-version: '3.6'
+          architecture: 'x64'
+
       - uses: actions/cache@v4
         id: cache-cask-packages
         with:
           path: .cask
           key: cache-cask-packages
+
+      - uses: conao3/setup-cask@master
 
       - run: make
