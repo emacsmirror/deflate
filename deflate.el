@@ -895,10 +895,8 @@ See the RFC paragraph 3.2.7.
 When FINAL is non-nil the block is marked as final."
   (let* ((lz77-tokens (deflate--lz77-compress data))
          ;; Use dynamic Huffman coding
-         (compressed-bits (deflate--encode-dynamic-huffman-block lz77-tokens final))
-         ;; Convert bits back to bytes
-         (compressed-bytes (deflate--bits-to-bytes compressed-bits)))
-    compressed-bytes))
+         (compressed-bits (deflate--encode-dynamic-huffman-block lz77-tokens final)))
+    compressed-bits))
 
 (defun deflate-compress--static (data final)
   "Compress DATA using the Static Huffman coding DEFLATE variant.
