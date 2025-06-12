@@ -31,6 +31,7 @@
 
 ;;; Change log:
 ;;
+;; version 0.0.3, 2025-06-12 Fixed critical bug with dynamic Huffman
 ;; version 0.0.2, 2025-06-11 Fixed a few warnings and bugs, preparing for actual release
 ;; version 0.0.1, 2025-06-11 Initial release with support for dynamic Huffman / no-compression blocks
 
@@ -971,13 +972,15 @@ Chosen so that CMF*256 + FLG is divisible by 31).")
 
 ;; ---- Only useful for debugging purposes ----
 
-(defun deflate--debug (instr outpath)
+(defun deflate--debug (instr outpath &optional block-type)
   "Compresses instr and writes the result into OUTPATH for debugging purposes.
 The INSTR string is compressed with DEFLATE and the bytes are stored in the file
  at OUTPATH.
 The file at OUTPATH can be inspected with tools such as `infgen':
-https://github.com/madler/infgen."
-  (let* ((compressed-bytes (deflate-compress instr))
+https://github.com/madler/infgen.
+BLOCK-TYPE is one of `'dymamic', `'static' or `'none'."
+  (let* ((block-type (or block-type 'dynamic))
+         (compressed-bytes (deflate-compress instr block-type))
          (adler32 (deflate-zlib-adler32 instr)))
     (with-temp-file outpath
       (set-buffer-file-coding-system 'binary)

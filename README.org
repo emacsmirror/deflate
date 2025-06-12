@@ -36,6 +36,6 @@ There's currently no plan to expand on ~zlib~ compatibility.
 - [X] dynamic Huffman codes compression
 - [X] basic ZLIB compatibility layer
 - [ ] static Huffman codes compression
-- [ ] no-compression blocks
+- [X] no-compression blocks
 - [ ] support more than 32k inputs / multiple blocks
 - [ ] decompress
