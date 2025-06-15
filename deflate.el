@@ -1,16 +1,17 @@
-;;; deflate.el --- A pure Emacs lisp implementation of the DEFLATE compression algorithm  -*- lexical-binding: t; -*-
+;;; deflate.el --- The DEFLATE compression algorithm in pure Emacs LISP  -*- lexical-binding: t; -*-
 
 ;; Copyright (C) 2025  Carlo Sciolla
 
 ;; Author: Carlo Sciolla <carlo.sciolla@gmail.com>
 ;; Maintainer: Carlo Sciolla <carlo.sciolla@gmail.com>
-;; Keywords: deflate, compression, algorithm, zlib
+;; Keywords: files, tools
 ;; Filename: deflate.el
-;; Description: A pure Emacs lisp implementation of the DEFLATE compression algorithm
+;; Description: The DEFLATE compression algorithm in pure Emacs LISP
 ;; Compatibility: Tested with Emacs 25 through 30
 ;; Version: 0.0.1
 ;; Package-Version: 0.0.1
-;; Package-Requires: ((dash "2.0.0") (emacs "25.0"))
+;; Package-Requires: ((dash "2.0.0") (emacs "25.1"))
+;; Homepage: https://github.com/skuro/deflate
 
 ;; This program is free software; you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published by
@@ -899,7 +900,7 @@ When FINAL is non-nil the block is marked as final."
          (compressed-bits (deflate--encode-dynamic-huffman-block lz77-tokens final)))
     compressed-bits))
 
-(defun deflate-compress--static (data final)
+(defun deflate-compress--static (_ _)
   "Compress DATA using the Static Huffman coding DEFLATE variant.
 See the RFC paragraph 3.2.6.
 When FINAL is non-nil the block is marked as final."
