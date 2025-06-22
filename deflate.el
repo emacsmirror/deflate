@@ -236,118 +236,119 @@ and extra-bits is a cons of (num-bits . value)."
    (t
     (cons 285 '(0 . 0)))))
 
-(defun deflate--get-distance-code (distance_)
-  "Convert a match DISTANCE_ to the appropriate DEFLATE distance code.
+;; NOTE: the formal parameter has the * character
+(defun deflate--get-distance-code (distance*)
+  "Convert a match DISTANCE* to the appropriate DEFLATE distance code.
 Returns a cons cell (code . extra-bits) where code is 0-29
 and extra-bits is a cons of (num-bits . value)."
   (cond
    ;; Direct encoding for distances 1-4 (codes 0-3)
-   ((<= distance_ 4)
-    (cons (- distance_ 1) '(0 . 0)))
+   ((<= distance* 4)
+    (cons (- distance* 1) '(0 . 0)))
 
    ;; Distances 5-6 (code 4, 1 extra bit)
-   ((<= distance_ 6)
-    (cons 4 (cons 1 (- distance_ 5))))
+   ((<= distance* 6)
+    (cons 4 (cons 1 (- distance* 5))))
 
    ;; Distances 7-8 (code 5, 1 extra bit)
-   ((<= distance_ 8)
-    (cons 5 (cons 1 (- distance_ 7))))
+   ((<= distance* 8)
+    (cons 5 (cons 1 (- distance* 7))))
 
    ;; Distances 9-12 (code 6, 2 extra bits)
-   ((<= distance_ 12)
-    (cons 6 (cons 2 (- distance_ 9))))
+   ((<= distance* 12)
+    (cons 6 (cons 2 (- distance* 9))))
 
    ;; Distances 13-16 (code 7, 2 extra bits)
-   ((<= distance_ 16)
-    (cons 7 (cons 2 (- distance_ 13))))
+   ((<= distance* 16)
+    (cons 7 (cons 2 (- distance* 13))))
 
    ;; Distances 17-24 (code 8, 3 extra bits)
-   ((<= distance_ 24)
-    (cons 8 (cons 3 (- distance_ 17))))
+   ((<= distance* 24)
+    (cons 8 (cons 3 (- distance* 17))))
 
    ;; Distances 25-32 (code 9, 3 extra bits)
-   ((<= distance_ 32)
-    (cons 9 (cons 3 (- distance_ 25))))
+   ((<= distance* 32)
+    (cons 9 (cons 3 (- distance* 25))))
 
    ;; Distances 33-48 (code 10, 4 extra bits)
-   ((<= distance_ 48)
-    (cons 10 (cons 4 (- distance_ 33))))
+   ((<= distance* 48)
+    (cons 10 (cons 4 (- distance* 33))))
 
    ;; Distances 49-64 (code 11, 4 extra bits)
-   ((<= distance_ 64)
-    (cons 11 (cons 4 (- distance_ 49))))
+   ((<= distance* 64)
+    (cons 11 (cons 4 (- distance* 49))))
 
    ;; Distances 65-96 (code 12, 5 extra bits)
-   ((<= distance_ 96)
-    (cons 12 (cons 5 (- distance_ 65))))
+   ((<= distance* 96)
+    (cons 12 (cons 5 (- distance* 65))))
 
    ;; Distances 97-128 (code 13, 5 extra bits)
-   ((<= distance_ 128)
-    (cons 13 (cons 5 (- distance_ 97))))
+   ((<= distance* 128)
+    (cons 13 (cons 5 (- distance* 97))))
 
    ;; Distances 129-192 (code 14, 6 extra bits)
-   ((<= distance_ 192)
-    (cons 14 (cons 6 (- distance_ 129))))
+   ((<= distance* 192)
+    (cons 14 (cons 6 (- distance* 129))))
 
    ;; Distances 193-256 (code 15, 6 extra bits)
-   ((<= distance_ 256)
-    (cons 15 (cons 6 (- distance_ 193))))
+   ((<= distance* 256)
+    (cons 15 (cons 6 (- distance* 193))))
 
    ;; Distances 257-384 (code 16, 7 extra bits)
-   ((<= distance_ 384)
-    (cons 16 (cons 7 (- distance_ 257))))
+   ((<= distance* 384)
+    (cons 16 (cons 7 (- distance* 257))))
 
    ;; Distances 385-512 (code 17, 7 extra bits)
-   ((<= distance_ 512)
-    (cons 17 (cons 7 (- distance_ 385))))
+   ((<= distance* 512)
+    (cons 17 (cons 7 (- distance* 385))))
 
    ;; Distances 513-768 (code 18, 8 extra bits)
-   ((<= distance_ 768)
-    (cons 18 (cons 8 (- distance_ 513))))
+   ((<= distance* 768)
+    (cons 18 (cons 8 (- distance* 513))))
 
    ;; Distances 769-1024 (code 19, 8 extra bits)
-   ((<= distance_ 1024)
-    (cons 19 (cons 8 (- distance_ 769))))
+   ((<= distance* 1024)
+    (cons 19 (cons 8 (- distance* 769))))
 
    ;; Distances 1025-1536 (code 20, 9 extra bits)
-   ((<= distance_ 1536)
-    (cons 20 (cons 9 (- distance_ 1025))))
+   ((<= distance* 1536)
+    (cons 20 (cons 9 (- distance* 1025))))
 
    ;; Distances 1537-2048 (code 21, 9 extra bits)
-   ((<= distance_ 2048)
-    (cons 21 (cons 9 (- distance_ 1537))))
+   ((<= distance* 2048)
+    (cons 21 (cons 9 (- distance* 1537))))
 
    ;; Distances 2049-3072 (code 22, 10 extra bits)
-   ((<= distance_ 3072)
-    (cons 22 (cons 10 (- distance_ 2049))))
+   ((<= distance* 3072)
+    (cons 22 (cons 10 (- distance* 2049))))
 
    ;; Distances 3073-4096 (code 23, 10 extra bits)
-   ((<= distance_ 4096)
-    (cons 23 (cons 10 (- distance_ 3073))))
+   ((<= distance* 4096)
+    (cons 23 (cons 10 (- distance* 3073))))
 
    ;; Distances 4097-6144 (code 24, 11 extra bits)
-   ((<= distance_ 6144)
-    (cons 24 (cons 11 (- distance_ 4097))))
+   ((<= distance* 6144)
+    (cons 24 (cons 11 (- distance* 4097))))
 
    ;; Distances 6145-8192 (code 25, 11 extra bits)
-   ((<= distance_ 8192)
-    (cons 25 (cons 11 (- distance_ 6145))))
+   ((<= distance* 8192)
+    (cons 25 (cons 11 (- distance* 6145))))
 
    ;; Distances 8193-12288 (code 26, 12 extra bits)
-   ((<= distance_ 12288)
-    (cons 26 (cons 12 (- distance_ 8193))))
+   ((<= distance* 12288)
+    (cons 26 (cons 12 (- distance* 8193))))
 
    ;; Distances 12289-16384 (code 27, 12 extra bits)
-   ((<= distance_ 16384)
-    (cons 27 (cons 12 (- distance_ 12289))))
+   ((<= distance* 16384)
+    (cons 27 (cons 12 (- distance* 12289))))
 
    ;; Distances 16385-24576 (code 28, 13 extra bits)
-   ((<= distance_ 24576)
-    (cons 28 (cons 13 (- distance_ 16385))))
+   ((<= distance* 24576)
+    (cons 28 (cons 13 (- distance* 16385))))
 
    ;; Distances 24577-32768 (code 29, 13 extra bits)
    (t
-    (cons 29 (cons 13 (- distance_ 24577))))))
+    (cons 29 (cons 13 (- distance* 24577))))))
 
 (defun deflate--huffman-encode-token (token ll-codes dd-codes)
   "Encode TOKEN using Huffman codes.
@@ -369,10 +370,10 @@ Returns a list of alists of `code', `code-length', `num-extra-bits' and
                ;; then process distance
                (distance-original (cadr token))
                (distance-spec (deflate--get-distance-code distance-original))
-               (distance_ (car distance-spec))
+               (distance* (car distance-spec))
                (distance-extra-bits (cdr distance-spec))
-               (distance-code (car (gethash distance_ dd-codes)))
-               (distance-code-length (cdr (gethash distance_ dd-codes))))
+               (distance-code (car (gethash distance* dd-codes)))
+               (distance-code-length (cdr (gethash distance* dd-codes))))
 
           ;; encode length
           (let* ((extra-bits (car length-extra-bits))
