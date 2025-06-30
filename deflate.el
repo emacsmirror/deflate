@@ -8,8 +8,8 @@
 ;; Filename: deflate.el
 ;; Description: The DEFLATE compression algorithm in pure Emacs LISP
 ;; Compatibility: Tested with Emacs 25 through 30
-;; Version: 0.0.1
-;; Package-Version: 0.0.1
+;; Version: 0.0.3
+;; Package-Version: 0.0.3
 ;; Package-Requires: ((dash "2.0.0") (emacs "25.1"))
 ;; Homepage: https://github.com/skuro/deflate
 
