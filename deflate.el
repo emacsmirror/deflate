@@ -8,8 +8,8 @@
 ;; Filename: deflate.el
 ;; Description: The DEFLATE compression algorithm in pure Emacs LISP
 ;; Compatibility: Tested with Emacs 25 through 30
-;; Version: 0.0.3
-;; Package-Version: 0.0.3
+;; Version: 0.0.4
+;; Package-Version: 0.0.4
 ;; Package-Requires: ((dash "2.0.0") (emacs "25.1"))
 ;; Homepage: https://github.com/skuro/deflate
 
@@ -33,6 +33,7 @@
 
 ;;; Change log:
 ;;
+;; version 0.0.4, 2025-07-01 Added deflate-zlib-compress to facilitate zlib usage
 ;; version 0.0.3, 2025-06-12 Fixed critical bug with dynamic Huffman
 ;; version 0.0.2, 2025-06-11 Fixed a few warnings and bugs, preparing for actual release
 ;; version 0.0.1, 2025-06-11 Initial release with support for dynamic Huffman / no-compression blocks
@@ -974,6 +975,15 @@ Chosen so that CMF*256 + FLG is divisible by 31).")
         deflate--zlib-flg)
   "The fixed zlib compatibility header.")
 
+(defun deflate-zlib-compress (instr block-type)
+  "Compress INSTR using DEFLATE BLOCK-TYPE then add the zlib envelope."
+  (let* ((block-type (or block-type 'dynamic))
+         (compressed-bytes (deflate-compress instr block-type))
+         (adler32 (deflate-zlib-adler32 instr)))
+    (append deflate-zlib-header
+            compressed-bytes
+            adler32)))
+
 ;; ---- Only useful for debugging purposes ----
 
 (defun deflate--debug (instr outpath &optional block-type)
@@ -983,15 +993,10 @@ The INSTR string is compressed with DEFLATE and the bytes are stored in the file
 The file at OUTPATH can be inspected with tools such as `infgen':
 https://github.com/madler/infgen.
 BLOCK-TYPE is one of `'dymamic', `'static' or `'none'."
-  (let* ((block-type (or block-type 'dynamic))
-         (compressed-bytes (deflate-compress instr block-type))
-         (adler32 (deflate-zlib-adler32 instr)))
-    (with-temp-file outpath
+  (with-temp-file outpath
       (set-buffer-file-coding-system 'binary)
-      (dolist (byte (append deflate-zlib-header
-                            compressed-bytes
-                            adler32))
-        (insert-byte byte 1)))))
+      (dolist (byte (deflate-zlib-compress instr block-type))
+        (insert-byte byte 1))))
 
 (provide 'deflate)
 ;;; deflate.el ends here
