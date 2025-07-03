@@ -33,6 +33,7 @@
 
 ;;; Change log:
 ;;
+;; version 0.0.5, 2025-07-03 Fixed bug with single-nodes huffman trees
 ;; version 0.0.4, 2025-07-01 Added deflate-zlib-compress to facilitate zlib usage
 ;; version 0.0.3, 2025-06-12 Fixed critical bug with dynamic Huffman
 ;; version 0.0.2, 2025-06-11 Fixed a few warnings and bugs, preparing for actual release
