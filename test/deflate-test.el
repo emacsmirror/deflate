@@ -241,6 +241,9 @@
 
 (ert-deftest deflate-test/huffman-codes ()
   "Test huffman code generation."
+  ;; edge case: the tree has only one single leaf node
+  (should (equal '((7 . 1))
+                 (deflate--build-huffman-code-lengths '(7 . 1))))
   (let* ((data (string-to-list "Oneone oneone twotwo twotwo"))
          (tokens (deflate--lz77-compress data))
          (freq-table (deflate--build-frequency-table tokens))

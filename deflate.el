@@ -409,6 +409,7 @@ Returns a list of alists of `code', `code-length', `num-extra-bits' and
 (defun deflate--build-huffman-tree (freq-alist)
   "Build a Huffman tree from FREQ-ALIST.
 Returns the root node of the tree."
+  ;; we start by copying the `freq-alist' into a new list
   (let ((heap (mapcar (lambda (pair) (cons (car pair) (cdr pair)))
                       freq-alist)))
     (while (> (length heap) 1)
@@ -418,6 +419,7 @@ Returns the root node of the tree."
       (let* ((a (pop heap))
              (b (pop heap))
              (merged (cons (list a b) (+ (cdr a) (cdr b)))))
+        ;; add a new node to the tree as a cons of `((left right) . sum-of-freqs)'
         (push merged heap)))
     ;; Return the single tree
     (car heap)))
@@ -474,10 +476,11 @@ Returns nil if TREE is nil."
   (when tree
     (letrec ((walk (lambda (node depth)
                      (if (consp (car node))
+                         ;; internal node, e.g. `(((7 . 1) (5 . 1)) . 2)'
                          (append (funcall walk (car (car node)) (1+ depth))
                                  (funcall walk (cadr (car node)) (1+ depth)))
-                       ;; Leaf node
-                       (list (cons (car node) depth))))))
+                       ;; leaf node, e.g. `(7 . 1)'
+                       (list (cons (car node) (max 1 depth)))))))
       (funcall walk tree 0))))
 
 (defun deflate--assign-huffman-codes (code-lengths)
