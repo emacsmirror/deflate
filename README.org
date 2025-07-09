@@ -3,6 +3,7 @@
 #+ATTR_HTML: :alt "deflate project logo"
 [[file:img/logo.svg]]
 
+[[https://melpastats-2761cf.gitlab.io/badges/deflate-badge.svg][https://melpastats-2761cf.gitlab.io/badges/deflate-badge.svg]]
 [[https://coveralls.io/github/skuro/deflate?branch=main][https://coveralls.io/repos/github/skuro/deflate/badge.svg?branch=main]]
 [[https://github.com/skuro/deflate/actions/workflows/makefile.yml/badge.svg]]
 
